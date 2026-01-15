@@ -229,7 +229,7 @@ All API keys and settings are configured in `.env`:
 
 ```env
 # ✅ Configured
-GOOGLE_GEMINI_API_KEY=AIzaSyDwK-M85lwn_FfbqOiBhQ5OlnnpDVdjTO8
+GOOGLE_GEMINI_API_KEY=your-google-gemini-api-key-here
 GEMINI_MODEL=gemini-1.5-pro
 FASTAPI_PORT=8000
 ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
