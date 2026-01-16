@@ -55,6 +55,7 @@ class ChatResponse(BaseModel):
     message: str = Field(..., description="AI assistant's response")
     timestamp: datetime = Field(default_factory=datetime.now)
     model: str = Field(default="gemini-1.5-pro")
+    thread_id: Optional[int] = Field(default=None, description="Thread ID")
     
     class Config:
         json_schema_extra = {

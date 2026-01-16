@@ -75,16 +75,20 @@ async def chat(
                     detail="Thread not found"
                 )
         
-        # Get last 5 messages from this thread for conversation memory (Project 4)
+        # Get last 5 conversation pairs from this thread for conversation memory
+        # Each ChatHistory record contains one user message and one AI response
         recent_messages = db.query(ChatHistory).filter(
             ChatHistory.thread_id == thread_id
         ).order_by(ChatHistory.created_at.desc()).limit(5).all()
         
         # Build conversation history (reverse to chronological order)
+        # This will include up to 5 previous user messages and 5 previous AI responses
         history = []
         for msg in reversed(recent_messages):
             history.append({"role": "user", "content": msg.message})
             history.append({"role": "assistant", "content": msg.response})
+        
+        logger.info(f"Retrieved {len(recent_messages)} previous conversation pairs for thread {thread_id}")
         
         # Get chat service
         chat_service = get_chat_service()
@@ -123,20 +127,21 @@ async def chat(
             db.rollback()
             # Continue even if saving fails
         
-        # Auto-generate thread title for new threads (Project 3)
-        if is_new_thread:
-            try:
-                title = await generate_thread_title(request.message, chat_service)
-                db.query(ChatThread).filter(ChatThread.id == thread_id).update({"title": title})
-                db.commit()
-                logger.info(f"Generated title '{title}' for thread {thread_id}")
-            except Exception as title_error:
-                logger.error(f"Failed to generate thread title: {str(title_error)}")
+        # Auto-generate/update thread title based on latest conversation
+        try:
+            # Generate title from the current conversation context
+            title = await generate_thread_title(request.message)
+            db.query(ChatThread).filter(ChatThread.id == thread_id).update({"title": title})
+            db.commit()
+            logger.info(f"{'Generated' if is_new_thread else 'Updated'} title '{title}' for thread {thread_id}")
+        except Exception as title_error:
+            logger.error(f"Failed to generate thread title: {str(title_error)}")
         
         # Return response
         return ChatResponse(
             message=result["message"],
-            model=result["model"]
+            model=result["model"],
+            thread_id=thread_id
         )
         
     except Exception as e:

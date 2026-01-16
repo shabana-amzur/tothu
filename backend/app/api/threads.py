@@ -26,7 +26,7 @@ async def generate_thread_title(first_message: str) -> str:
         chat_service = get_chat_service()
         
         # Use AI to generate a concise title
-        prompt = f"Generate a short, concise title (max 5 words) for a conversation that starts with: '{first_message[:100]}'. Only respond with the title, nothing else."
+        prompt = f"Based on this user message: '{first_message[:100]}', generate a short descriptive title (max 5 words) that describes what the conversation is about. Use natural language like 'Poem on Cat' or 'Python Tutorial' rather than 'Cat Poem Request' or 'Tutorial Request'. Just respond with the title, nothing else."
         
         from langchain.schema import HumanMessage
         result = await chat_service.llm.ainvoke([HumanMessage(content=prompt)])
@@ -140,27 +140,15 @@ async def get_thread(
             ChatHistory.thread_id == thread_id
         ).order_by(ChatHistory.created_at).all()
         
-        message_list = [
-            {
-                "id": msg.id,
-                "role": "user",
-                "content": msg.message,
-                "timestamp": msg.created_at.isoformat()
-            }
-            for msg in messages
-        ]
-        
-        # Add assistant responses
+        message_list = []
         for msg in messages:
+            # Add user message
             message_list.append({
                 "id": msg.id,
-                "role": "assistant",
-                "content": msg.response,
-                "timestamp": msg.created_at.isoformat()
+                "message": msg.message,
+                "response": msg.response,
+                "created_at": msg.created_at.isoformat()
             })
-        
-        # Sort by timestamp
-        message_list.sort(key=lambda x: x["timestamp"])
         
         return ThreadWithMessages(
             id=thread.id,
