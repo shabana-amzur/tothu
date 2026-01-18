@@ -74,7 +74,7 @@ trap cleanup INT TERM
 echo -e "${BLUE}[1/2] Starting FastAPI Backend...${NC}"
 cd backend
 source ../venv/bin/activate
-uvicorn main:app --reload --port 8000 > /tmp/backend.log 2>&1 &
+uvicorn main:app --reload --port 8001 > /tmp/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
@@ -83,7 +83,7 @@ sleep 3
 
 # Check if backend is running
 if kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${GREEN}✓${NC} Backend started on http://localhost:8000"
+    echo -e "${GREEN}✓${NC} Backend started on http://localhost:8001"
 else
     echo -e "${YELLOW}✗${NC} Backend failed to start. Check /tmp/backend.log"
     exit 1
@@ -115,8 +115,8 @@ echo "=================================="
 echo ""
 echo "URLs:"
 echo "  • Frontend: http://localhost:3000"
-echo "  • Backend:  http://localhost:8000"
-echo "  • API Docs: http://localhost:8000/docs"
+echo "  • Backend:  http://localhost:8001"
+echo "  • API Docs: http://localhost:8001/docs"
 echo ""
 echo "Logs:"
 echo "  • Backend:  /tmp/backend.log"
