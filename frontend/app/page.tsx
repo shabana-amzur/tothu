@@ -38,6 +38,11 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [refreshThreads, setRefreshThreads] = useState(0);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle OAuth callback with token in URL
   useEffect(() => {
@@ -254,6 +259,73 @@ export default function Home() {
     }
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Only PDF, TXT, and DOCX files are supported');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
+
+  const uploadFile = async () => {
+    if (!selectedFile) return;
+    setIsUploadingFile(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch('http://localhost:8001/api/documents/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      const uploadMessage: Message = {
+        role: 'assistant',
+        content: `✅ **File uploaded successfully!**\n\n**${selectedFile.name}** is being processed. You can now ask questions about this document.`,
+        timestamp: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, uploadMessage]);
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `❌ Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
+
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   if (authLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-900">
@@ -384,7 +456,59 @@ export default function Home() {
         {/* Input Area */}
         <div className="border-t border-gray-700 bg-gray-800 px-4 py-4 shadow-lg flex-shrink-0">
           <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
+            {/* Selected file display */}
+            {selectedFile && (
+              <div className="mb-3 flex items-center justify-between bg-gray-700 rounded-lg px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-sm text-gray-300">{selectedFile.name}</span>
+                  <span className="text-xs text-gray-500">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={uploadFile}
+                    disabled={isUploadingFile}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded disabled:opacity-50"
+                  >
+                    {isUploadingFile ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={removeSelectedFile}
+                    className="text-sm text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <div className="flex space-x-3">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.txt,.docx"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              
+              {/* File upload button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading || isUploadingFile}
+                className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Upload PDF, TXT, or DOCX"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
+              
               <input
                 ref={inputRef}
                 type="text"

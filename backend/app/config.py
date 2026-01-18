@@ -17,7 +17,10 @@ class Settings(BaseSettings):
     
     # API Keys
     GOOGLE_GEMINI_API_KEY: str
-    OPENAI_API_KEY: str = ""  # For future use
+    OPENAI_API_KEY: str = ""
+    
+    # OpenAI Configuration
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-large"
     
     # Gemini Model Configuration
     GEMINI_MODEL: str = "gemini-2.5-flash"

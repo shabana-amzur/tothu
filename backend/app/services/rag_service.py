@@ -1,12 +1,12 @@
 """
 RAG (Retrieval-Augmented Generation) Service
-Handles document-based question answering
+Handles document-based question answering using OpenAI embeddings
 """
 
 from typing import List, Dict, Optional
 import logging
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from pathlib import Path
 
@@ -15,10 +15,10 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Initialize embeddings
-embeddings = GoogleGenerativeAIEmbeddings(
-    model="models/embedding-001",
-    google_api_key=settings.GOOGLE_GEMINI_API_KEY
+# Initialize OpenAI embeddings with text-embedding-3-large
+embeddings = OpenAIEmbeddings(
+    model=settings.OPENAI_EMBEDDING_MODEL,
+    openai_api_key=settings.OPENAI_API_KEY
 )
 
 # Chroma DB path
