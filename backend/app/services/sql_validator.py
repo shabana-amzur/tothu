@@ -9,11 +9,14 @@ from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
-# Dangerous SQL keywords that indicate write operations
+# Allowed write operations
+WRITE_OPERATIONS = ['INSERT', 'UPDATE', 'DELETE']
+
+# Dangerous SQL keywords that should be blocked
 DANGEROUS_KEYWORDS = [
-    'INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE', 
-    'TRUNCATE', 'REPLACE', 'MERGE', 'GRANT', 'REVOKE',
-    'EXECUTE', 'EXEC', 'CALL', 'BEGIN', 'COMMIT', 'ROLLBACK'
+    'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'REPLACE', 'MERGE', 
+    'GRANT', 'REVOKE', 'EXECUTE', 'EXEC', 'CALL', 'BEGIN', 
+    'COMMIT', 'ROLLBACK', 'RENAME', 'CASCADE'
 ]
 
 # Additional dangerous patterns
@@ -49,9 +52,10 @@ class SQLValidator:
         # Normalize the query for checking
         sql_upper = sql.upper().strip()
         
-        # Check if query starts with SELECT
-        if not sql_upper.startswith('SELECT'):
-            return False, "Only SELECT queries are allowed"
+        # Check if query starts with allowed operation
+        allowed_starts = ['SELECT'] + WRITE_OPERATIONS
+        if not any(sql_upper.startswith(op) for op in allowed_starts):
+            return False, f"Query must start with one of: {', '.join(allowed_starts)}"
         
         # Check for dangerous keywords
         for keyword in DANGEROUS_KEYWORDS:
@@ -97,6 +101,44 @@ class SQLValidator:
         sql = ' '.join(sql.split())
         
         return sql
+    
+    @staticmethod
+    def get_query_type(sql: str) -> str:
+        """
+        Determines the type of SQL query
+        
+        Args:
+            sql: The SQL query
+            
+        Returns:
+            Query type: 'SELECT', 'INSERT', 'UPDATE', 'DELETE', or 'UNKNOWN'
+        """
+        sql_upper = sql.upper().strip()
+        
+        if sql_upper.startswith('SELECT'):
+            return 'SELECT'
+        elif sql_upper.startswith('INSERT'):
+            return 'INSERT'
+        elif sql_upper.startswith('UPDATE'):
+            return 'UPDATE'
+        elif sql_upper.startswith('DELETE'):
+            return 'DELETE'
+        else:
+            return 'UNKNOWN'
+    
+    @staticmethod
+    def is_write_operation(sql: str) -> bool:
+        """
+        Checks if the query is a write operation
+        
+        Args:
+            sql: The SQL query
+            
+        Returns:
+            True if it's INSERT, UPDATE, or DELETE
+        """
+        query_type = SQLValidator.get_query_type(sql)
+        return query_type in WRITE_OPERATIONS
     
     @staticmethod
     def validate_and_sanitize(sql: str) -> Tuple[bool, str, str]:

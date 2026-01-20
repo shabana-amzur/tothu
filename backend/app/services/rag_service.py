@@ -1,12 +1,12 @@
 """
 RAG (Retrieval-Augmented Generation) Service
-Handles document-based question answering using OpenAI embeddings
+Handles document-based question answering using Google Gemini embeddings
 """
 
 from typing import List, Dict, Optional
 import logging
 
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from pathlib import Path
 
@@ -15,10 +15,9 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Initialize OpenAI embeddings with text-embedding-3-large
-embeddings = OpenAIEmbeddings(
-    model=settings.OPENAI_EMBEDDING_MODEL,
-    openai_api_key=settings.OPENAI_API_KEY
+# Initialize HuggingFace embeddings (FREE, no API key needed, runs locally)
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
 # Chroma DB path

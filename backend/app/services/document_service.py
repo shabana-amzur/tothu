@@ -12,7 +12,7 @@ import logging
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from sqlalchemy.orm import Session
 
@@ -22,10 +22,9 @@ from app.models.database import Document
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Initialize OpenAI embeddings with text-embedding-3-large
-embeddings = OpenAIEmbeddings(
-    model=settings.OPENAI_EMBEDDING_MODEL,
-    openai_api_key=settings.OPENAI_API_KEY
+# Initialize HuggingFace embeddings (FREE, no API key needed, runs locally)
+embeddings = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
 # Chroma DB path

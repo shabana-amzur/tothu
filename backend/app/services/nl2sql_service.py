@@ -7,7 +7,7 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from sqlalchemy import create_engine, inspect, MetaData, Table, text
 from sqlalchemy.exc import SQLAlchemyError
 from app.config import get_settings
@@ -103,18 +103,20 @@ class NL2SQLService:
             # Create prompt for SQL generation
             prompt_template = PromptTemplate(
                 input_variables=["question", "schema"],
-                template="""You are a SQL expert. Convert the following natural language question into a SQL SELECT query.
+                template="""You are a SQL expert. Convert the following natural language question into a SQL query.
 
 Database Schema:
 {schema}
 
 IMPORTANT RULES:
-1. Generate ONLY SELECT queries (no INSERT, UPDATE, DELETE, DROP, etc.)
+1. Generate SELECT, INSERT, UPDATE, or DELETE queries as appropriate for the question
 2. Return ONLY the SQL query, no explanations or markdown
 3. Do not include semicolons
 4. Use proper SQL syntax for PostgreSQL
 5. Use table and column names exactly as shown in the schema
-6. If the question cannot be answered with the given schema, return: "ERROR: Cannot generate query from this question"
+6. Do NOT generate DROP, ALTER, CREATE, TRUNCATE, or other DDL statements
+7. For write operations (INSERT/UPDATE/DELETE), be precise and use WHERE clauses when appropriate
+8. If the question cannot be answered with the given schema, return: "ERROR: Cannot generate query from this question"
 
 Question: {question}
 
@@ -201,9 +203,27 @@ SQL Query:"""
             # Execute query
             logger.info(f"Executing SQL: {sanitized_sql}")
             with self.engine.connect() as connection:
+                # Check if it's a write operation
+                query_type = self.validator.get_query_type(sanitized_sql)
+                
                 result = connection.execute(text(sanitized_sql))
                 
-                # Fetch results
+                # For write operations, commit and return affected rows
+                if query_type in ['INSERT', 'UPDATE', 'DELETE']:
+                    connection.commit()
+                    rows_affected = result.rowcount
+                    logger.info(f"{query_type} query executed successfully, {rows_affected} rows affected")
+                    return {
+                        'success': True,
+                        'data': [],
+                        'row_count': 0,
+                        'columns': [],
+                        'rows_affected': rows_affected,
+                        'query_type': query_type,
+                        'message': f"{query_type} successful: {rows_affected} row(s) affected"
+                    }
+                
+                # For SELECT, fetch and return results
                 rows = result.fetchall()
                 columns = result.keys()
                 
@@ -217,7 +237,9 @@ SQL Query:"""
                     'success': True,
                     'data': data,
                     'row_count': len(data),
-                    'columns': list(columns)
+                    'columns': list(columns),
+                    'rows_affected': 0,
+                    'query_type': 'SELECT'
                 }
         
         except SQLAlchemyError as e:

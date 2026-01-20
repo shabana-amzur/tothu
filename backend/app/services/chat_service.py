@@ -4,7 +4,7 @@ Handles all AI chat logic using LangChain
 """
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from typing import List, Dict
 from datetime import datetime
 import logging

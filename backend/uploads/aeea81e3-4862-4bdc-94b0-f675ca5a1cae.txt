@@ -1,0 +1,44 @@
+TEST DOCUMENT FOR PROJECT 7 - RAG SYSTEM
+
+Company: TechCorp Solutions
+Founded: 2020
+CEO: Sarah Johnson
+Headquarters: San Francisco, California
+
+Products:
+1. CloudSync Pro - Cloud storage and synchronization platform
+   - Price: $29.99/month
+   - Storage: 2TB
+   - Features: Real-time sync, end-to-end encryption, mobile apps
+
+2. DataVault Enterprise - Enterprise data management solution
+   - Price: $499/month
+   - Storage: Unlimited
+   - Features: Advanced security, compliance tools, API access, 24/7 support
+
+3. SmartBackup - Automated backup solution
+   - Price: $14.99/month
+   - Storage: 500GB
+   - Features: Automatic daily backups, version history, disaster recovery
+
+Key Statistics:
+- Total Users: 1.2 million
+- Enterprise Clients: 450
+- Annual Revenue: $45 million
+- Employee Count: 230
+- Customer Satisfaction: 4.7/5 stars
+
+Recent News:
+- March 2025: Launched AI-powered search feature in CloudSync Pro
+- January 2026: Raised $25 million in Series B funding
+- Company plans to expand to Europe in Q2 2026
+
+Contact Information:
+Email: contact@techcorp.example
+Phone: +1 (555) 123-4567
+Support Hours: Monday-Friday, 9 AM - 6 PM PST
+
+Awards:
+- Best Cloud Storage Platform 2024 - TechReview Magazine
+- Innovation Award 2025 - Silicon Valley Tech Summit
+- Customer Choice Award 2025 - SoftwareRatings.com
