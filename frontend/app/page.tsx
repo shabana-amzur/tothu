@@ -388,6 +388,15 @@ export default function Home() {
             <p className="text-sm text-gray-400">Powered by Google Gemini</p>
           </div>
           <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.push('/sql')}
+              className="flex items-center space-x-2 text-sm bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+              </svg>
+              <span>SQL Query</span>
+            </button>
             <span className="text-sm text-gray-300">
               {user.full_name || user.username}
             </span>

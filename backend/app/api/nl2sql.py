@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api/nl-to-sql", tags=["nl2sql"])
 class NL2SQLRequest(BaseModel):
     """Request model for NL to SQL conversion"""
     question: str = Field(..., description="Natural language question", min_length=1, max_length=500)
+    confirm: bool = Field(default=False, description="Set to True to confirm execution of write operations")
     
     class Config:
         json_schema_extra = {
@@ -39,6 +40,10 @@ class NL2SQLResponse(BaseModel):
     row_count: Optional[int] = Field(None, description="Number of rows returned")
     columns: Optional[List[str]] = Field(None, description="Column names")
     error: Optional[str] = Field(None, description="Error message if any")
+    rows_affected: Optional[int] = Field(None, description="Number of rows affected by write operation")
+    query_type: Optional[str] = Field(None, description="Type of query: SELECT, INSERT, UPDATE, DELETE")
+    message: Optional[str] = Field(None, description="Success message for write operations")
+    is_write_operation: Optional[bool] = Field(None, description="Whether this is a write operation requiring confirmation")
     
     class Config:
         json_schema_extra = {
@@ -84,28 +89,69 @@ async def nl_to_sql(
     Convert natural language question to SQL and execute it
     
     **Security Features:**
-    - Only SELECT queries allowed
+    - SELECT, INSERT, UPDATE, DELETE queries allowed
     - Automatic validation of generated SQL
-    - No write operations permitted (INSERT, UPDATE, DELETE, etc.)
+    - Write operations require confirmation
+    - Dangerous operations (DROP, ALTER, TRUNCATE) are blocked
     
     **Example Questions:**
     - "Show total sales by month"
     - "List top 5 customers by revenue"
-    - "How many users registered last week?"
-    - "What is the average order value?"
+    - "Insert a new user with email test@example.com"
+    - "Update the price of product ID 5 to 29.99"
+    - "Delete orders older than 2020"
     """
     try:
-        logger.info(f"User {current_user.email} asked: {request.question}")
+        logger.info(f"User {current_user.email} asked: {request.question} (confirm={request.confirm})")
         
         # Get NL2SQL service
         nl2sql_service = get_nl2sql_service()
         
-        # Process the query
+        # First, generate SQL to check if it's a write operation
+        sql_result = nl2sql_service.generate_sql(request.question)
+        
+        if not sql_result['success']:
+            return NL2SQLResponse(
+                success=False,
+                question=request.question,
+                sql=sql_result.get('sql'),
+                error=sql_result['error'],
+                data=None,
+                row_count=None,
+                columns=None
+            )
+        
+        sql = sql_result['sql']
+        from app.services.sql_validator import SQLValidator
+        validator = SQLValidator()
+        is_write = validator.is_write_operation(sql)
+        query_type = validator.get_query_type(sql)
+        
+        # If it's a write operation and not confirmed, return preview
+        if is_write and not request.confirm:
+            logger.info(f"Write operation detected, requiring confirmation: {sql}")
+            return NL2SQLResponse(
+                success=True,
+                question=request.question,
+                sql=sql,
+                data=None,
+                row_count=None,
+                columns=None,
+                is_write_operation=True,
+                query_type=query_type,
+                message=f"⚠️ This is a {query_type} operation. Please review and confirm execution."
+            )
+        
+        # Execute the query (either SELECT or confirmed write operation)
         result = nl2sql_service.process_nl_query(request.question)
+        result['is_write_operation'] = is_write
         
         # Log the result
         if result['success']:
-            logger.info(f"Query successful: {result.get('row_count', 0)} rows returned")
+            if is_write:
+                logger.info(f"Write operation successful: {result.get('rows_affected', 0)} rows affected")
+            else:
+                logger.info(f"Query successful: {result.get('row_count', 0)} rows returned")
         else:
             logger.warning(f"Query failed: {result.get('error', 'Unknown error')}")
         

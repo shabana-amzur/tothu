@@ -125,6 +125,7 @@ export default function RegisterPage() {
               {isLoading ? 'Creating account...' : 'Create Account'}
             </button>
           </div>
+<<<<<<< HEAD
 
           {/* Divider */}
           <div className="relative">
@@ -151,6 +152,8 @@ export default function RegisterPage() {
               Sign up with Google
             </a>
           </div>
+=======
+>>>>>>> 0e7bc1e (feat: Add NL2SQL write operations with confirmation modal)
         </form>
       </div>
     </div>
