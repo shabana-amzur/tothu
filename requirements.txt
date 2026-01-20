@@ -24,6 +24,7 @@ langchain==0.3.14
 langchain-google-genai==2.0.9
 langchain-openai==0.2.14
 langchain-community==0.3.14
+langchain-experimental==0.3.3  # For pandas agent
 
 # Document Processing & RAG
 chromadb==0.5.23  # Vector database
@@ -32,6 +33,10 @@ python-docx==1.1.2  # DOCX processing
 python-magic==0.4.27  # File type detection
 tiktoken==0.8.0  # Token counting
 python-multipart==0.0.9  # For file uploads
+openpyxl==3.1.5  # Excel file processing
+xlrd==2.0.1  # Legacy Excel file support
+gspread==6.1.4  # Google Sheets API
+oauth2client==4.1.3  # Google OAuth for Sheets
 
 # Environment & Configuration
 python-dotenv==1.0.1

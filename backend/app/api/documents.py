@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".xlsx", ".xls", ".xlsm", ".csv"}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
 
 @router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
