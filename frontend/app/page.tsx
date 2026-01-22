@@ -43,6 +43,9 @@ export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedExcelId, setUploadedExcelId] = useState<number | null>(null);
+  const [excelFileName, setExcelFileName] = useState<string>('');
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Handle OAuth callback with token in URL
   useEffect(() => {
@@ -207,6 +210,9 @@ export default function Home() {
     setInput('');
     setIsLoading(true);
 
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
+
     try {
       const response = await fetch('http://localhost:8001/api/chat', {
         method: 'POST',
@@ -218,6 +224,7 @@ export default function Home() {
           message: userMessage.content,
           thread_id: currentThreadId,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) {
@@ -251,13 +258,27 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error:', error);
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      // Don't show error message if request was aborted by user
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request cancelled by user');
+      } else {
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
+      setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
@@ -265,13 +286,23 @@ export default function Home() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-      if (!allowedTypes.includes(file.type)) {
-        alert('Only PDF, TXT, and DOCX files are supported');
+      const allowedTypes = [
+        'application/pdf', 
+        'text/plain', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+        'application/vnd.ms-excel', // .xls
+        'text/csv' // .csv
+      ];
+      const fileExt = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
+      const allowedExts = ['.pdf', '.txt', '.docx', '.xlsx', '.xls', '.xlsm', '.csv'];
+      
+      if (!allowedTypes.includes(file.type) && !allowedExts.includes(fileExt)) {
+        alert('Supported files: PDF, TXT, DOCX, XLSX, XLS, CSV (max 50MB)');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
+      if (file.size > 50 * 1024 * 1024) {
+        alert('File size must be less than 50MB');
         return;
       }
       setSelectedFile(file);
@@ -397,6 +428,15 @@ export default function Home() {
               </svg>
               <span>SQL Query</span>
             </button>
+            <button
+              onClick={() => router.push('/excel')}
+              className="flex items-center space-x-2 text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Excel Analysis</span>
+            </button>
             <span className="text-sm text-gray-300">
               {user.full_name || user.username}
             </span>
@@ -423,9 +463,10 @@ export default function Home() {
                   <ul className="space-y-1">
                     <li>📝 Markdown formatting</li>
                     <li>💻 Code with syntax highlighting</li>
-                    <li>📊 Tables</li>
+                    <li>📊 Tables & Excel/CSV files</li>
                     <li>🔢 Mathematical formulas (LaTeX)</li>
                     <li>🖼️ Images and videos</li>
+                    <li>📈 Google Sheets (paste URL)</li>
                   </ul>
                 </div>
               </div>
@@ -564,10 +605,27 @@ export default function Home() {
                 disabled={isLoading}
                 className="flex-1 rounded-full border border-gray-600 bg-gray-700 text-white px-6 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed placeholder-gray-400"
               />
+              
+              {/* Stop button - shown when loading, next to send button */}
+              {isLoading && (
+                <button
+                  type="button"
+                  onClick={stopGeneration}
+                  className="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full transition-colors"
+                  title="Stop generation"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                </button>
+              )}
+              
+              {/* Send button - always visible but disabled when loading */}
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                title="Send message"
               >
                 Send
               </button>
