@@ -67,6 +67,17 @@ export default function Home() {
     }
   }, [searchParams, loginWithToken]);
 
+  // Load Excel context from localStorage on mount
+  useEffect(() => {
+    const savedExcelId = localStorage.getItem('uploadedExcelId');
+    const savedExcelName = localStorage.getItem('excelFileName');
+    if (savedExcelId && savedExcelName) {
+      setUploadedExcelId(parseInt(savedExcelId));
+      setExcelFileName(savedExcelName);
+      console.log('Restored Excel context:', savedExcelId, savedExcelName);
+    }
+  }, []);
+
   useEffect(() => {
     // Don't redirect to login if we're processing OAuth or still loading
     if (!authLoading && !user && !isProcessingOAuth) {
@@ -214,6 +225,42 @@ export default function Home() {
     abortControllerRef.current = new AbortController();
 
     try {
+      // If Excel file is uploaded, route to Excel API
+      if (uploadedExcelId) {
+        const response = await fetch(`http://localhost:8001/api/excel/${uploadedExcelId}/ask`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            question: userMessage.content
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          if (response.status === 401) {
+            logout();
+            throw new Error('Session expired');
+          }
+          throw new Error(errorData.detail || 'Failed to get response');
+        }
+
+        const data = await response.json();
+        
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.answer,
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+        return;
+      }
+      
+      // Regular chat
       const response = await fetch('http://localhost:8001/api/chat', {
         method: 'POST',
         headers: {
@@ -315,6 +362,51 @@ export default function Home() {
     setIsUploadingFile(true);
     
     try {
+      // Check if it's an Excel file
+      const fileExt = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+      const isExcelFile = ['.xlsx', '.xls', '.xlsm', '.csv'].includes(fileExt);
+      
+      if (isExcelFile) {
+        // Upload Excel file
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const response = await fetch('http://localhost:8001/api/excel/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to upload Excel file');
+        }
+
+        const data = await response.json();
+        setUploadedExcelId(data.id);
+        setExcelFileName(selectedFile.name);
+        // Persist to localStorage
+        localStorage.setItem('uploadedExcelId', data.id.toString());
+        localStorage.setItem('excelFileName', selectedFile.name);
+        console.log('Excel file uploaded, ID:', data.id);
+
+        const uploadMessage: Message = {
+          role: 'assistant',
+          content: `✅ **Document uploaded successfully!**\n\n**${selectedFile.name}** is being processed and will be available shortly.\n\nYou can now ask questions about this document. The AI will automatically use the document content to answer your questions.`,
+          timestamp: new Date().toISOString(),
+        };
+        
+        setMessages(prev => [...prev, uploadMessage]);
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Regular document upload
       // If no thread exists, create one first
       let threadId = currentThreadId;
       if (!threadId) {
@@ -542,6 +634,32 @@ export default function Home() {
         {/* Input Area */}
         <div className="border-t border-gray-700 bg-gray-800 px-4 py-4 shadow-lg flex-shrink-0">
           <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
+            {/* Excel file active indicator */}
+            {uploadedExcelId && excelFileName && (
+              <div className="mb-3 flex items-center justify-between bg-green-900 bg-opacity-30 border border-green-700 rounded-lg px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span className="text-sm text-green-300">📊 Excel: {excelFileName}</span>
+                  <span className="text-xs text-green-500">(Active - Ask questions about this data)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedExcelId(null);
+                    setExcelFileName('');
+                    localStorage.removeItem('uploadedExcelId');
+                    localStorage.removeItem('excelFileName');
+                  }}
+                  className="text-sm text-green-400 hover:text-white"
+                  title="Clear Excel context"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            
             {/* Selected file display */}
             {selectedFile && (
               <div className="mb-3 flex items-center justify-between bg-gray-700 rounded-lg px-4 py-2">

@@ -9,6 +9,9 @@ from typing import Dict, List, Any, Optional
 import logging
 from pathlib import Path
 import json
+import re
+# import gspread
+# from oauth2client.service_account import ServiceAccountCredentials
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from sqlalchemy.orm import Session
@@ -29,6 +32,61 @@ class ExcelService:
             google_api_key=settings.GOOGLE_GEMINI_API_KEY,
             temperature=settings.GEMINI_TEMPERATURE
         )
+    
+    def is_google_sheets_url(self, url: str) -> bool:
+        """Check if URL is a Google Sheets URL"""
+        patterns = [
+            r'docs\.google\.com/spreadsheets',
+            r'drive\.google\.com.*spreadsheets'
+        ]
+        return any(re.search(pattern, url) for pattern in patterns)
+    
+    def extract_sheet_id(self, url: str) -> Optional[str]:
+        """Extract Google Sheets ID from URL"""
+        patterns = [
+            r'/spreadsheets/d/([a-zA-Z0-9-_]+)',
+            r'id=([a-zA-Z0-9-_]+)'
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None
+    
+    def load_google_sheet(self, url: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
+        """Load Google Sheet from URL into pandas DataFrame"""
+        try:
+            # Extract sheet ID
+            sheet_id = self.extract_sheet_id(url)
+            if not sheet_id:
+                raise ValueError("Invalid Google Sheets URL")
+            
+            # Use public CSV export (no auth required for public sheets)
+            if sheet_name:
+                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
+            else:
+                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+            
+            # Load from public URL
+            df = pd.read_csv(csv_url)
+            logger.info(f"Loaded Google Sheet: {sheet_id} with shape {df.shape}")
+            return df
+        
+        except Exception as e:
+            logger.error(f"Error loading Google Sheet {url}: {str(e)}")
+            # Try alternative method
+            try:
+                # For public sheets, try direct export URL
+                if '/edit' in url:
+                    export_url = url.replace('/edit', '/export?format=csv')
+                else:
+                    export_url = f"{url}/export?format=csv"
+                df = pd.read_csv(export_url)
+                logger.info(f"Loaded Google Sheet via alternative method with shape {df.shape}")
+                return df
+            except Exception as e2:
+                logger.error(f"Alternative method also failed: {str(e2)}")
+                raise ValueError("Failed to load Google Sheet. Make sure the sheet is publicly accessible (Anyone with the link can view).")
     
     def load_excel_file(self, file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
         """Load Excel file into pandas DataFrame"""
@@ -118,14 +176,17 @@ Dataset Information:
 - Total Columns: {len(df.columns)}
 - Column Names and Types: {json.dumps(summary['column_types'], indent=2)}
 
-Sample Data (first 5 rows):
-{df.head(5).to_string()}
+ALL DATA (all {len(df)} rows):
+{df.to_string()}
 
 Statistics for Numeric Columns:
 {df.describe().to_string() if len(df.select_dtypes(include=['int64', 'float64']).columns) > 0 else 'No numeric columns'}
 
 Missing Values:
 {json.dumps(summary['missing_values'], indent=2)}
+
+Date Columns (if any):
+{json.dumps({col: str(df[col].dtype) for col in df.columns if 'date' in str(df[col].dtype).lower() or 'datetime' in str(df[col].dtype).lower()}, indent=2)}
 """
             
             # Add specific calculations if needed
@@ -133,10 +194,24 @@ Missing Values:
 
 User Question: {question}
 
-Please analyze the data and provide a clear, accurate answer to the question.
-If calculations are needed, show your work.
-If the question requires specific data points, reference them.
-Format numbers appropriately (currency, percentages, etc.).
+IMPORTANT INSTRUCTIONS:
+1. Analyze the COMPLETE dataset provided above (all {len(df)} rows)
+2. Give EXACT answers with specific values from the data
+3. Be CONCISE - give direct answers without lengthy explanations
+4. For simple questions (who/what/when/count), answer in 1-2 sentences maximum
+5. For date questions, provide the exact date
+6. For counting questions, provide just the number or name
+7. Show specific data values only when necessary
+8. DO NOT provide analysis unless explicitly asked
+9. DO NOT explain the dataset structure unless asked
+10. Answer ONLY what was asked - nothing more
+
+Example good answers:
+- "Who completed most assignments?" → "John Smith completed 15 assignments, the most in the dataset."
+- "How many students?" → "There are 42 students."
+- "What is the latest date?" → "2026-01-15"
+
+Provide a BRIEF, DIRECT answer to the question.
 """
             
             # Get response from LLM
@@ -146,7 +221,8 @@ Format numbers appropriately (currency, percentages, etc.).
                 "question": question,
                 "answer": response.content,
                 "file_name": file_name,
-                "data_shape": {"rows": len(df), "columns": len(df.columns)}
+                "data_shape": {"rows": len(df), "columns": len(df.columns)},
+                "error": False
             }
             
             logger.info(f"Question answered for {file_name}: {question}")
@@ -154,9 +230,17 @@ Format numbers appropriately (currency, percentages, etc.).
         
         except Exception as e:
             logger.error(f"Error answering question: {str(e)}")
+            error_msg = str(e)
+            
+            # Check if it's a rate limit error
+            if "429" in error_msg or "quota" in error_msg.lower():
+                error_msg = "⚠️ Rate limit exceeded. Please wait a moment and try again, or check your API quota at https://ai.google.dev/gemini-api/docs/rate-limits"
+            
             return {
                 "question": question,
-                "answer": f"Error processing question: {str(e)}",
+                "answer": error_msg,
+                "file_name": file_name,
+                "data_shape": {"rows": len(df), "columns": len(df.columns)},
                 "error": True
             }
     
