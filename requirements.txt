@@ -41,6 +41,11 @@ oauth2client==4.1.3  # Google OAuth for Sheets
 =======
 >>>>>>> 0e7bc1e (feat: Add NL2SQL write operations with confirmation modal)
 
+# Image Processing & Vision
+Pillow==11.0.0  # Image processing
+pytesseract==0.3.13  # OCR fallback (optional)
+openai==1.59.3  # OpenAI Vision API
+
 # Environment & Configuration
 python-dotenv==1.0.1
 pydantic==2.10.4

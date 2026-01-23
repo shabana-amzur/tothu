@@ -1,0 +1,33 @@
+{
+  "document_type": "invoice",
+  "rules": [
+    {
+      "field": "invoice_number",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "invoice_date",
+      "type": "DATE_CHECK",
+      "condition": "PAST"
+    },
+    {
+      "field": "total_amount",
+      "type": "RANGE_CHECK",
+      "min": 1
+    },
+    {
+      "field": "currency",
+      "type": "ENUM_CHECK",
+      "values": ["INR", "USD", "EUR", "GBP"]
+    },
+    {
+      "field": "vendor_name",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "email",
+      "type": "REGEX_MATCH",
+      "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "document_type": "id_card",
+  "rules": [
+    {
+      "field": "id_number",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "full_name",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "date_of_birth",
+      "type": "DATE_CHECK",
+      "condition": "PAST"
+    },
+    {
+      "field": "expiry_date",
+      "type": "DATE_CHECK",
+      "condition": "FUTURE"
+    },
+    {
+      "field": "id_number",
+      "type": "REGEX_MATCH",
+      "pattern": "^[A-Z0-9]{8,15}$"
+    }
+  ]
+}

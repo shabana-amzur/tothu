@@ -46,6 +46,14 @@ export default function Home() {
   const [uploadedExcelId, setUploadedExcelId] = useState<number | null>(null);
   const [excelFileName, setExcelFileName] = useState<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Image validation state
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [isValidatingImage, setIsValidatingImage] = useState(false);
+  const [showImageValidation, setShowImageValidation] = useState(false);
+  const [documentType, setDocumentType] = useState<string>('invoice');
+  const [useDemoMode, setUseDemoMode] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // Handle OAuth callback with token in URL
   useEffect(() => {
@@ -485,6 +493,180 @@ export default function Home() {
     }
   };
 
+  // Image validation functions
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      // Check if it's an image
+      if (file.type.startsWith('image/')) {
+        setSelectedImage(file);
+      } else {
+        alert('Please select an image file (JPG, PNG, JPEG)');
+      }
+    }
+  };
+
+  const validateImage = async () => {
+    if (!token) return;
+    
+    // Check if demo mode and no image selected
+    if (useDemoMode) {
+      return validateDemoMode();
+    }
+    
+    if (!selectedImage) return;
+
+    setIsValidatingImage(true);
+    
+    // Add user message showing the image
+    const userMessage: Message = {
+      role: 'user',
+      content: `🖼️ Validating image: **${selectedImage.name}** (Type: ${documentType})`,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedImage);
+      formData.append('document_type', documentType);
+
+      const response = await fetch('http://localhost:8001/api/image-validation/validate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to validate image');
+      }
+
+      const result = await response.json();
+      
+      // Format the validation result as a nice message
+      let resultMessage = `## 📋 Image Validation Results\n\n`;
+      resultMessage += `**Document Type:** ${documentType}\n`;
+      resultMessage += `**Overall Status:** ${result.overall_status === 'VALID' ? '✅ VALID' : '❌ INVALID'}\n`;
+      resultMessage += `**Confidence Score:** ${(result.confidence_score * 100).toFixed(1)}%\n\n`;
+      
+      resultMessage += `### Extracted Data:\n\`\`\`json\n${JSON.stringify(result.extracted_data, null, 2)}\n\`\`\`\n\n`;
+      
+      resultMessage += `### Validation Results:\n\n`;
+      result.validation_results.forEach((vr: any) => {
+        const icon = vr.status === 'PASS' ? '✅' : '❌';
+        resultMessage += `${icon} **${vr.field}** (${vr.rule_type}): ${vr.status}`;
+        if (vr.reason) {
+          resultMessage += `\n   - _${vr.reason}_`;
+        }
+        resultMessage += '\n\n';
+      });
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: resultMessage,
+        timestamp: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      setSelectedImage(null);
+      setShowImageValidation(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Image validation error:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `❌ Failed to validate image: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsValidatingImage(false);
+    }
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const validateDemoMode = async () => {
+    if (!token) return;
+
+    setIsValidatingImage(true);
+    
+    // Add user message
+    const userMessage: Message = {
+      role: 'user',
+      content: `🎭 Running demo validation (Type: ${documentType})`,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    try {
+      const formData = new FormData();
+      formData.append('document_type', documentType);
+
+      const response = await fetch('http://localhost:8001/api/image-validation/validate-demo', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to run demo validation');
+      }
+
+      const result = await response.json();
+      
+      // Format the validation result
+      let resultMessage = `## 📋 Demo Validation Results\n\n`;
+      resultMessage += `**Document Type:** ${documentType}\n`;
+      resultMessage += `**Overall Status:** ${result.overall_status === 'VALID' ? '✅ VALID' : '❌ INVALID'}\n`;
+      resultMessage += `**Confidence Score:** ${(result.confidence_score * 100).toFixed(1)}% (Demo)\n\n`;
+      
+      resultMessage += `### Extracted Data:\n\`\`\`json\n${JSON.stringify(result.extracted_data, null, 2)}\n\`\`\`\n\n`;
+      
+      resultMessage += `### Validation Results:\n\n`;
+      result.validation_results.forEach((vr: any) => {
+        const icon = vr.status === 'PASS' ? '✅' : '❌';
+        resultMessage += `${icon} **${vr.field}** (${vr.rule_type}): ${vr.status}`;
+        if (vr.reason) {
+          resultMessage += `\n   - _${vr.reason}_`;
+        }
+        resultMessage += '\n\n';
+      });
+
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: resultMessage,
+        timestamp: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      setShowImageValidation(false);
+    } catch (error) {
+      console.error('Demo validation error:', error);
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: `❌ Failed to run demo: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsValidatingImage(false);
+    }
+  };
+
   if (authLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-900">
@@ -689,6 +871,126 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Image validation section */}
+            {showImageValidation && (
+              <div className="mb-3 bg-purple-900 bg-opacity-30 border border-purple-700 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-purple-300">🖼️ Image Validation</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowImageValidation(false);
+                      setSelectedImage(null);
+                      if (imageInputRef.current) imageInputRef.current.value = '';
+                    }}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-3">
+                  {/* Demo mode toggle */}
+                  <div className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-300">🎭 Demo Mode</span>
+                      <span className="text-xs text-gray-500">(No API required)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUseDemoMode(!useDemoMode)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        useDemoMode ? 'bg-purple-600' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          useDemoMode ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Document type selector */}
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-2">Document Type:</label>
+                    <select
+                      value={documentType}
+                      onChange={(e) => setDocumentType(e.target.value)}
+                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="invoice">Invoice</option>
+                      <option value="receipt">Receipt</option>
+                      <option value="id_card">ID Card</option>
+                    </select>
+                  </div>
+
+                  {/* Image file input - only show if not in demo mode */}
+                  {!useDemoMode && (
+                    <>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                          />
+
+                      {/* Selected image display or demo button */}
+                      {selectedImage ? (
+                        <div className="flex items-center justify-between bg-gray-700 rounded-lg px-4 py-2">
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-sm text-gray-300">{selectedImage.name}</span>
+                            <span className="text-xs text-gray-500">({(selectedImage.size / 1024).toFixed(1)} KB)</span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              type="button"
+                              onClick={validateImage}
+                              disabled={isValidatingImage}
+                              className="text-sm bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded disabled:opacity-50"
+                            >
+                              {isValidatingImage ? 'Validating...' : 'Validate'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={removeSelectedImage}
+                              className="text-sm text-gray-400 hover:text-white"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef.current?.click()}
+                          className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded transition-colors"
+                        >
+                          Choose Image File
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {/* Demo mode button */}
+                  {useDemoMode && (
+                    <button
+                      type="button"
+                      onClick={validateImage}
+                      disabled={isValidatingImage}
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded transition-colors disabled:opacity-50"
+                    >
+                      {isValidatingImage ? 'Running Demo...' : '🎭 Run Demo Validation'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             
             <div className="flex space-x-3">
               {/* Hidden file input */}
@@ -710,6 +1012,19 @@ export default function Home() {
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              </button>
+
+              {/* Image validation button */}
+              <button
+                type="button"
+                onClick={() => setShowImageValidation(!showImageValidation)}
+                disabled={isLoading || isValidatingImage}
+                className={`${showImageValidation ? 'bg-purple-600' : 'bg-gray-700'} hover:bg-purple-600 text-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                title="Validate Image (Invoice, Receipt, ID)"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </button>
               

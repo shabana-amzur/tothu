@@ -1,0 +1,28 @@
+{
+  "document_type": "receipt",
+  "rules": [
+    {
+      "field": "receipt_number",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "date",
+      "type": "DATE_CHECK",
+      "condition": "PAST"
+    },
+    {
+      "field": "total",
+      "type": "RANGE_CHECK",
+      "min": 0.01
+    },
+    {
+      "field": "merchant_name",
+      "type": "REQUIRED_FIELD"
+    },
+    {
+      "field": "payment_method",
+      "type": "ENUM_CHECK",
+      "values": ["CASH", "CARD", "UPI", "NET_BANKING"]
+    }
+  ]
+}
