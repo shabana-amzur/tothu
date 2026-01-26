@@ -1,0 +1,11 @@
+Product,Category,Price,Units_Sold,Revenue,Rating
+Laptop,Electronics,899.99,150,134998.50,4.5
+Mouse,Electronics,29.99,450,13495.50,4.2
+Keyboard,Electronics,79.99,300,23997.00,4.7
+Monitor,Electronics,299.99,200,59998.00,4.6
+Desk Chair,Furniture,199.99,180,35998.20,4.4
+Standing Desk,Furniture,499.99,90,44999.10,4.8
+Table Lamp,Furniture,39.99,250,9997.50,4.3
+Coffee Mug,Kitchen,12.99,600,7794.00,4.1
+Water Bottle,Kitchen,24.99,400,9996.00,4.5
+Lunch Box,Kitchen,19.99,320,6396.80,4.2

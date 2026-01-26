@@ -33,6 +33,7 @@ python-docx==1.1.2  # DOCX processing
 python-magic==0.4.27  # File type detection
 tiktoken==0.8.0  # Token counting
 python-multipart==0.0.9  # For file uploads
+pytz==2024.1  # Timezone support for world time tool
 <<<<<<< HEAD
 openpyxl==3.1.5  # Excel file processing
 xlrd==2.0.1  # Legacy Excel file support

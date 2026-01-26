@@ -29,6 +29,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional thread ID to associate message with a thread"
     )
+    use_agent: bool = Field(
+        default=False,
+        description="Use agent mode with tools (calculator, text utilities)"
+    )
     
     class Config:
         json_schema_extra = {

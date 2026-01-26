@@ -33,6 +33,13 @@ class ExcelQuestionRequest(BaseModel):
     sheet_name: Optional[str] = None
 
 
+class GoogleSheetRequest(BaseModel):
+    """Request model for loading Google Sheets"""
+    url: str
+    sheet_name: Optional[str] = None
+    thread_id: Optional[int] = None
+
+
 class ExcelQuestionResponse(BaseModel):
     """Response model for Excel Q&A"""
     question: str
@@ -167,11 +174,17 @@ async def get_excel_summary(
                 detail="Document not found"
             )
         
-        # Load Excel file
+        # Load Excel file or Google Sheet
         excel_service = get_excel_service()
-        df = excel_service.load_excel_file(document.file_path, sheet_name)
+        
+        if document.file_type == "gsheet":
+            df = excel_service.load_google_sheet(document.file_path, sheet_name)
+            sheet_names = []
+        else:
+            df = excel_service.load_excel_file(document.file_path, sheet_name)
+            sheet_names = excel_service.get_sheet_names(document.file_path)
+        
         summary = excel_service.get_dataframe_summary(df)
-        sheet_names = excel_service.get_sheet_names(document.file_path)
         
         return ExcelSummaryResponse(
             rows=summary["rows"],
@@ -213,9 +226,15 @@ async def ask_excel_question(
                 detail="Document not found"
             )
         
-        # Load Excel file
+        # Load Excel file or Google Sheet
         excel_service = get_excel_service()
-        df = excel_service.load_excel_file(document.file_path, request.sheet_name)
+        
+        if document.file_type == "gsheet":
+            # Load from Google Sheets URL
+            df = excel_service.load_google_sheet(document.file_path, request.sheet_name)
+        else:
+            # Load from local file
+            df = excel_service.load_excel_file(document.file_path, request.sheet_name)
         
         # Ask question
         result = excel_service.ask_question(
@@ -273,4 +292,71 @@ async def get_sheet_names(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting sheet names: {str(e)}"
+        )
+
+
+@router.post("/google-sheet", status_code=status.HTTP_201_CREATED)
+async def load_google_sheet(
+    request: GoogleSheetRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Load a Google Sheet from URL"""
+    try:
+        excel_service = get_excel_service()
+        
+        # Validate URL
+        if not excel_service.is_google_sheets_url(request.url):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Google Sheets URL"
+            )
+        
+        # Load the Google Sheet
+        df = excel_service.load_google_sheet(request.url, request.sheet_name)
+        summary = excel_service.get_dataframe_summary(df)
+        
+        # Extract sheet ID for filename
+        sheet_id = excel_service.extract_sheet_id(request.url)
+        filename = f"gsheet_{sheet_id}_{request.sheet_name or 'default'}"
+        
+        # Create document record (no actual file saved for Google Sheets)
+        document = Document(
+            user_id=current_user.id,
+            thread_id=request.thread_id,
+            filename=filename,
+            original_filename=f"Google Sheet ({sheet_id})",
+            file_path=request.url,  # Store URL instead of file path
+            file_size=0,  # No local file
+            file_type="gsheet",
+            status="ready",
+            chunk_count=len(df)
+        )
+        
+        db.add(document)
+        db.commit()
+        db.refresh(document)
+        
+        logger.info(f"Google Sheet loaded: {sheet_id} by user {current_user.email}")
+        
+        return {
+            "id": document.id,
+            "filename": document.filename,
+            "original_filename": document.original_filename,
+            "file_type": "gsheet",
+            "status": document.status,
+            "rows": summary.get("rows", 0),
+            "columns": summary.get("columns", 0),
+            "column_names": summary.get("column_names", []),
+            "url": request.url,
+            "created_at": document.created_at
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error loading Google Sheet: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error loading Google Sheet: {str(e)}"
         )

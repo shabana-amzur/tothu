@@ -10,6 +10,7 @@ import logging
 
 from ..models.chat import ChatRequest, ChatResponse, ErrorResponse
 from ..services.chat_service import get_chat_service
+from ..services.basic_agent import run_basic_agent
 from ..database import get_db
 from ..models.database import User, ChatHistory, ChatThread
 from ..utils.auth import get_current_active_user
@@ -90,25 +91,34 @@ async def chat(
         
         logger.info(f"Retrieved {len(recent_messages)} previous conversation pairs for thread {thread_id}")
         
-        # Get chat service
-        chat_service = get_chat_service()
-        
-        # Check if thread has documents and should use RAG (thread-specific)
-        from app.services.rag_service import get_rag_service
-        rag_service = get_rag_service()
-        use_rag = rag_service.should_use_rag(current_user.id, thread_id)
-        
-        if use_rag:
-            logger.info(f"Using RAG for user {current_user.email} in thread {thread_id}")
-        
-        # Get response from Gemini (with thread-specific RAG if available)
-        result = await chat_service.get_chat_response(
-            user_message=request.message,
-            conversation_history=history,
-            user_id=current_user.id,
-            thread_id=thread_id,
-            use_rag=use_rag
-        )
+        # Check if agent mode is requested
+        if request.use_agent:
+            logger.info(f"🤖 Using AGENT mode for user {current_user.email}")
+            agent_response = run_basic_agent(request.message)
+            result = {
+                "message": agent_response,
+                "model": "gemini-2.5-flash (Agent Mode)"
+            }
+        else:
+            # Get chat service
+            chat_service = get_chat_service()
+            
+            # Check if thread has documents and should use RAG (thread-specific)
+            from app.services.rag_service import get_rag_service
+            rag_service = get_rag_service()
+            use_rag = rag_service.should_use_rag(current_user.id, thread_id)
+            
+            if use_rag:
+                logger.info(f"Using RAG for user {current_user.email} in thread {thread_id}")
+            
+            # Get response from Gemini (with thread-specific RAG if available)
+            result = await chat_service.get_chat_response(
+                user_message=request.message,
+                conversation_history=history,
+                user_id=current_user.id,
+                thread_id=thread_id,
+                use_rag=use_rag
+            )
         
         # Save chat history to database with thread_id
         try:

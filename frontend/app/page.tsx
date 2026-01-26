@@ -54,6 +54,9 @@ export default function Home() {
   const [documentType, setDocumentType] = useState<string>('invoice');
   const [useDemoMode, setUseDemoMode] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  
+  // Agent mode state
+  const [useAgent, setUseAgent] = useState(false);
 
   // Handle OAuth callback with token in URL
   useEffect(() => {
@@ -278,6 +281,7 @@ export default function Home() {
         body: JSON.stringify({
           message: userMessage.content,
           thread_id: currentThreadId,
+          use_agent: useAgent,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -991,6 +995,25 @@ export default function Home() {
                 </div>
               </div>
             )}
+            
+            {/* Agent Mode Toggle */}
+            <div className="mb-3 flex items-center justify-between bg-gray-700 rounded-lg px-4 py-2">
+              <div className="flex items-center space-x-3">
+                <span className="text-sm font-medium text-gray-300">🤖 Agent Mode</span>
+                <span className="text-xs text-gray-400">
+                  {useAgent ? '12 tools: math, text, date, validation, random, units, world time & more' : 'Standard chat mode'}
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useAgent}
+                  onChange={(e) => setUseAgent(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
             
             <div className="flex space-x-3">
               {/* Hidden file input */}
